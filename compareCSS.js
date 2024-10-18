@@ -6,18 +6,15 @@ const chalk = require('chalk');
 function parseCssFile(filePath) {
     try {
         const content = fs.readFileSync(filePath, 'utf8');
-        const parsedCss = css.parse(content, { silent: true });
-        if (parsedCss.stylesheet && parsedCss.stylesheet.parsingErrors && parsedCss.stylesheet.parsingErrors.length > 0) {
-            console.log(chalk.yellow(`Warning: Parsing errors in ${filePath}:`));
-            parsedCss.stylesheet.parsingErrors.forEach(error => {
-                console.log(chalk.yellow(`  Line ${error.line}: ${error.message}`));
-            });
-        }
-        return parsedCss;
+        return css.parse(content, { silent: true });
     } catch (error) {
         console.error(chalk.red(`Error reading or parsing ${filePath}: ${error.message}`));
         return null;
     }
+}
+
+function stringifyCss(ast) {
+    return css.stringify(ast, { compress: false });
 }
 
 function compareCss(file1, file2, options = {}) {
@@ -29,63 +26,48 @@ function compareCss(file1, file2, options = {}) {
         return;
     }
 
-    console.log(chalk.blue(`Comparing ${file1} and ${file2}:\n`));
+    const string1 = stringifyCss(css1);
+    const string2 = stringifyCss(css2);
 
-    const rules1 = css1.stylesheet ? css1.stylesheet.rules || [] : [css1];
-    const rules2 = css2.stylesheet ? css2.stylesheet.rules || [] : [css2];
+    const differences = diff.createPatch('css_diff', string1, string2, 'File 1', 'File 2');
 
-    let added = 0, removed = 0, modified = 0;
-    let details = [];
+    // 打印摘要
+    const lines = differences.split('\n');
+    let added = 0, removed = 0;
+    lines.forEach(line => {
+        if (line.startsWith('+')) added++;
+        if (line.startsWith('-')) removed--;
+    });
 
-    rules1.forEach((rule1, index) => {
-        const rule2 = rules2[index];
-        if (!rule2) {
-            removed++;
-            details.push(chalk.red(`Removed: ${getSelector(rule1)}`));
+    console.log(chalk.cyan('Summary:'));
+    console.log(chalk.green(`  Added lines: ${added}`));
+    console.log(chalk.red(`  Removed lines: ${Math.abs(removed)}`));
+    console.log('\n');
+
+    // 打印有限数量的差异行
+    const maxLines = options.maxLines || 100;
+    console.log(chalk.cyan(`Diff (showing first ${maxLines} lines):`));
+    lines.slice(0, maxLines).forEach(line => {
+        if (line.startsWith('+')) {
+            console.log(chalk.green(line));
+        } else if (line.startsWith('-')) {
+            console.log(chalk.red(line));
+        } else if (line.startsWith('@')) {
+            console.log(chalk.cyan(line));
         } else {
-            const diffResult = diff.diffJson(rule1, rule2);
-            if (diffResult.length > 1) {
-                modified++;
-                details.push(chalk.yellow(`Modified: ${getSelector(rule1)}`));
-            }
+            console.log(line);
         }
     });
 
-    added = Math.max(0, rules2.length - rules1.length);
-
-    // 打印摘要
-    console.log(chalk.cyan('Summary:'));
-    console.log(chalk.green(`  Added: ${added}`));
-    console.log(chalk.red(`  Removed: ${removed}`));
-    console.log(chalk.yellow(`  Modified: ${modified}`));
-    console.log('\n');
-
-    // 打印有限数量的详细信息
-    const maxDetails = options.maxDetails || 10;
-    console.log(chalk.cyan(`Details (showing first ${maxDetails}):`));
-    details.slice(0, maxDetails).forEach(detail => console.log(detail));
-
-    if (details.length > maxDetails) {
-        console.log(chalk.gray(`... and ${details.length - maxDetails} more changes.`));
+    if (lines.length > maxLines) {
+        console.log(chalk.gray(`... and ${lines.length - maxLines} more lines.`));
     }
 
     // 如果需要，生成完整报告
     if (options.fullReport) {
-        const reportPath = `css_comparison_report_${Date.now()}.txt`;
-        fs.writeFileSync(reportPath, details.join('\n'));
-        console.log(chalk.cyan(`\nFull report saved to: ${reportPath}`));
-    }
-}
-
-function getSelector(rule) {
-    return rule.selectors ? rule.selectors.join(', ') : (rule.type || 'Unknown');
-}
-
-function stringifyRule(rule) {
-    try {
-        return css.stringify({ stylesheet: { rules: [rule] } });
-    } catch (error) {
-        return `[Unable to stringify rule: ${error.message}]`;
+        const reportPath = `css_diff_report_${Date.now()}.diff`;
+        fs.writeFileSync(reportPath, differences);
+        console.log(chalk.cyan(`\nFull diff report saved to: ${reportPath}`));
     }
 }
 
@@ -99,4 +81,4 @@ if (!file1 || !file2) {
     process.exit(1);
 }
 
-compareCss(file1, file2, { maxDetails: 10, fullReport });
+compareCss(file1, file2, { maxLines: 100, fullReport });
