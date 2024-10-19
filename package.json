@@ -1,17 +1,30 @@
 {
-  "name": "css-comparison",
+  "name": "css-comparison-tool",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "description": "A command-line tool for comparing CSS files",
+  "main": "lib/compareCSS.js",
+  "bin": {
+    "css-compare": "./bin/css-compare.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "scripts": {
+    "test": "mocha test/**/*.js"
+  },
+  "keywords": [
+    "css",
+    "comparison",
+    "diff",
+    "tool",
+    "cli",
+    "stylesheet"
+  ],
+  "author": "princetoad",
+  "license": "MIT",
   "dependencies": {
     "chalk": "^4.1.2",
     "css": "^3.0.0",
     "diff": "^7.0.0"
+  },
+  "devDependencies": {
+    "mocha": "^10.7.3"
   }
 }
